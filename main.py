@@ -1,12 +1,16 @@
 import time
 from machine import I2C, Pin
 
-BUTTON_PIN = 14
+BUTTON_PINS = (10, 11, 12, 13, 22)
+LED_PINS = (16, 17)
 LOG_FILE = "log.txt"
 DS3231_I2C_ADDR = 0x68
 
-i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq=400000)
-button = Pin(BUTTON_PIN, Pin.IN, Pin.PULL_UP)
+i2c = I2C(1, scl=Pin(15), sda=Pin(14), freq=400000)
+buttons = tuple(Pin(pin, Pin.IN, Pin.PULL_DOWN) for pin in BUTTON_PINS)
+leds = tuple(Pin(pin, Pin.OUT) for pin in LED_PINS)
+for led in leds:
+  led.value(0)
 
 
 def bcd_to_dec(value):
@@ -35,21 +39,34 @@ def read_rtc_seconds():
   return hour * 3600 + minute * 60 + second
 
 
+def button_pressed():
+  return any(button.value() == 1 for button in buttons)
+
+
+def set_leds(value):
+  for led in leds:
+    led.value(value)
+
+
 def wait_for_button_press():
   """Wait for a stable press and return the RTC time when it was detected."""
   while True:
-    while button.value() == 1:
+    while not button_pressed():
+      set_leds(0)
       time.sleep(0.01)
 
+    set_leds(1)
     pressed_at = read_rtc_seconds()
     time.sleep(0.03)
-    if button.value() == 0:
+    if button_pressed():
       return pressed_at
 
 
 def wait_for_button_release():
-  while button.value() == 0:
+  while button_pressed():
+    set_leds(1)
     time.sleep(0.01)
+  set_leds(0)
 
 
 def run_game():
